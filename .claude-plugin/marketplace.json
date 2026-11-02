@@ -1,0 +1,16 @@
+{
+  "name": "jeremy-tools",
+  "owner": {
+    "name": "Jeremy"
+  },
+  "metadata": {
+    "description": "Jeremy's Claude Code plugins."
+  },
+  "plugins": [
+    {
+      "name": "history",
+      "source": "./",
+      "description": "Searchable page of your Claude Code sessions with summaries and resume commands."
+    }
+  ]
+}

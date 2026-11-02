@@ -1,0 +1,7 @@
+# Personal data never belongs in this repo (it lives in ~/.claude/history-data)
+summaries.json
+pending.json
+sessions.json
+url.txt
+__pycache__/
+.DS_Store

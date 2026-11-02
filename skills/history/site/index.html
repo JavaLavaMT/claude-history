@@ -1,0 +1,197 @@
+<title>Claude Session Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow reading column; a sticky search bar, then sessions grouped under day headers. */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --ink: #17202b;
+  --muted: #5d6b7a;
+  --line: #d9e0e7;
+  --accent: #0e7c74;
+  --accent-soft: #dcefed;
+  --code-bg: #eef2f5;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --surface: #19212a; --ink: #e6ebf0; --muted: #93a1b0;
+    --line: #2a3541; --accent: #4fc1b6; --accent-soft: #173a38; --code-bg: #0d1217;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #19212a; --ink: #e6ebf0; --muted: #93a1b0;
+  --line: #2a3541; --accent: #4fc1b6; --accent-soft: #173a38; --code-bg: #0d1217;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.55 var(--body);
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg);
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+header h1 {
+  font: 700 clamp(28px, 6vw, 40px)/1.1 var(--display);
+  letter-spacing: -0.02em; margin: 0; text-wrap: balance;
+}
+header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); padding-block: 16px 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#q {
+  width: 100%; font: 16px var(--body); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 11px 14px;
+}
+#q:focus-visible, .chip:focus-visible, .copy:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chip {
+  flex: none; font: 13px var(--body); color: var(--muted); cursor: pointer;
+  background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.count { color: var(--muted); font-size: 13px; }
+.day {
+  font: 600 12px var(--display); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 28px 0 10px;
+}
+.list { display: flex; flex-direction: column; gap: 10px; }
+.session {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.session h2 { font: 600 18px/1.3 var(--display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.meta .proj { color: var(--accent); font-weight: 700; }
+.summary { margin: 0; max-width: 65ch; overflow-wrap: anywhere; }
+.summary.none { color: var(--muted); font-style: italic; }
+details { font-size: 14px; color: var(--muted); }
+summary { cursor: pointer; width: fit-content; }
+details p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 65ch; }
+.resume { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
+.resume code {
+  flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
+  font: 12.5px/1 var(--mono); background: var(--code-bg); color: var(--ink);
+  border-radius: 8px; padding: 10px 12px;
+}
+.copy {
+  flex: none; font: 700 13px var(--body); cursor: pointer;
+  background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 8px; padding: 0 14px;
+}
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .copy { transition: background .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Session Log</h1>
+    <p id="stamp">Loading your Claude Code sessions…</p>
+  </header>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Search titles, summaries, first prompts…" aria-label="Search sessions">
+    <div class="chips" id="chips" role="group" aria-label="Filter by project"></div>
+    <div class="count" id="count"></div>
+  </div>
+  <main id="out"></main>
+</div>
+
+<script>
+const state = { sessions: [], project: "All", q: "" };
+const $ = id => document.getElementById(id);
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function dayLabel(iso) {
+  const d = new Date(iso), today = new Date();
+  const days = Math.round((new Date(today.toDateString()) - new Date(d.toDateString())) / 864e5);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+}
+function time(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+}
+function resumeCmd(s) {
+  return `cd ${s.cwd.includes(" ") ? `"${s.cwd}"` : s.cwd} && claude --resume ${s.id}`;
+}
+
+function renderChips() {
+  const counts = {};
+  state.sessions.forEach(s => counts[s.project] = (counts[s.project] || 0) + 1);
+  const names = ["All", ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
+  $("chips").innerHTML = names.map(n =>
+    `<button class="chip" type="button" data-p="${esc(n)}" aria-pressed="${n === state.project}">${esc(n)}${n === "All" ? "" : ` · ${counts[n]}`}</button>`
+  ).join("");
+}
+
+function render() {
+  const q = state.q.toLowerCase();
+  const rows = state.sessions.filter(s =>
+    (state.project === "All" || s.project === state.project) &&
+    (!q || [s.title, s.summary, s.first, s.project, s.branch, s.id].join(" ").toLowerCase().includes(q))
+  );
+  $("count").textContent = `${rows.length} of ${state.sessions.length} sessions`;
+  if (!rows.length) { $("out").innerHTML = `<p class="empty">No sessions match “${esc(state.q)}”. Try a project name or a word from your first message.</p>`; return; }
+  let html = "", day = null;
+  rows.forEach(s => {
+    const d = dayLabel(s.last);
+    if (d !== day) { html += `${day ? "</div>" : ""}<h3 class="day">${d}</h3><div class="list">`; day = d; }
+    html += `<article class="session">
+      <h2>${esc(s.title)}</h2>
+      <div class="meta"><span class="proj">${esc(s.project)}</span>${s.branch ? `<span>${esc(s.branch)}</span>` : ""}<span>${s.prompts} prompt${s.prompts === 1 ? "" : "s"}</span><span>last active ${time(s.last)}</span></div>
+      <p class="summary${s.summary ? "" : " none"}">${s.summary ? esc(s.summary) : "No summary yet. Run /history again to add one."}</p>
+      <details><summary>Your first message</summary><p>${esc(s.first)}</p></details>
+      <div class="resume"><code>${esc(resumeCmd(s))}</code><button class="copy" type="button" data-cmd="${esc(resumeCmd(s))}">Copy</button></div>
+    </article>`;
+  });
+  $("out").innerHTML = html + "</div>";
+}
+
+$("q").addEventListener("input", e => { state.q = e.target.value.trim(); render(); });
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  state.project = b.dataset.p;
+  try { localStorage.setItem("project", state.project); } catch {}
+  renderChips(); render();
+});
+$("out").addEventListener("click", e => {
+  const b = e.target.closest(".copy"); if (!b) return;
+  const done = () => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1500); };
+  navigator.clipboard?.writeText(b.dataset.cmd).then(done, () => {
+    const r = document.createRange(); r.selectNodeContents(b.previousElementSibling);
+    getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Press ⌘C";
+  }) ?? done();
+});
+
+fetch("sessions.json").then(r => r.json()).then(data => {
+  state.sessions = data.sessions;
+  try { const p = localStorage.getItem("project"); if (p && data.sessions.some(s => s.project === p)) state.project = p; } catch {}
+  $("stamp").textContent = `${data.sessions.length} sessions on this computer · updated ${new Date(data.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+  renderChips(); render();
+}).catch(() => {
+  $("stamp").textContent = "Couldn't load the session list. Run /history again to republish it.";
+});
+</script>
