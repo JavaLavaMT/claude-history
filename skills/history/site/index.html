@@ -58,9 +58,11 @@ button { font: inherit; color: inherit; }
 
 /* Header */
 header { display: flex; flex-direction: column; gap: 18px; }
+header > *, .activity, .bar > * { min-width: 0; }
 h1 { font: 700 clamp(30px, 6vw, 42px)/1.05 var(--display); letter-spacing: -0.02em; margin: 0; }
 .stats { margin: 6px 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 .stats b { color: var(--ink); }
+.stats span { white-space: nowrap; }
 .activity { display: flex; flex-direction: column; gap: 6px; }
 .activity-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; color: var(--muted); }
 .activity-head strong { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: 0.08em; }
@@ -102,7 +104,12 @@ h1 { font: 700 clamp(30px, 6vw, 42px)/1.05 var(--display); letter-spacing: -0.02
 .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); flex: none; }
 .seg button { border: 0; background: transparent; padding: 0 12px; font-size: 13px; color: var(--muted); cursor: pointer; min-height: 40px; }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.chips::after { content: ""; flex: none; width: 24px; }
 .chip {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
   font-size: 13px; color: var(--muted); cursor: pointer;
@@ -172,6 +179,9 @@ details[open] { flex-basis: 100%; }
   .copy, .chip, .seg button, .session, .day-bar span { transition: background-color .15s, border-color .15s, opacity .15s; }
 }
 @media (max-width: 480px) {
+  .activity-head span { display: none; }
+  .seg { flex: 1 1 100%; }
+  .seg button { flex: 1; }
   .timeline { padding-left: 22px; }
   .timeline::before { left: 6px; }
   .day::before { left: -21px; }
@@ -334,6 +344,8 @@ function renderSessions() {
 }
 
 function renderAll() { renderStrip(); renderChips(); renderSessions(); }
+// On narrow screens the strip scrolls; start at the right so today is in view.
+function showToday() { const el = document.querySelector(".strip-scroll"); el.scrollLeft = el.scrollWidth; }
 
 $("q").addEventListener("input", e => { state.q = e.target.value.trim(); renderSessions(); });
 $("q").addEventListener("keydown", e => { if (e.key === "Escape") { e.target.value = ""; state.q = ""; renderSessions(); } });
@@ -380,7 +392,16 @@ $("out").addEventListener("click", e => {
   navigator.clipboard.writeText(b.dataset.cmd).then(() => say("Copied", 1500), fallback);
 });
 
+// Auto-generated titles are slugs; turn them into plain words.
+function niceTitle(t) {
+  t = String(t || "").trim();
+  if (!/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t)) return t;
+  t = t.replace(/-/g, " ");
+  return t[0].toUpperCase() + t.slice(1);
+}
+
 fetch("sessions.json").then(r => r.json()).then(data => {
+  data.sessions.forEach(s => s.title = niceTitle(s.title));
   state.sessions = data.sessions;
   try {
     const p = localStorage.getItem("project"); if (p && data.sessions.some(s => s.project === p)) state.project = p;
@@ -389,9 +410,11 @@ fetch("sessions.json").then(r => r.json()).then(data => {
   document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.sort === state.sort));
   const projects = new Set(data.sessions.map(s => s.project)).size;
   const prompts = data.sessions.reduce((n, s) => n + s.prompts, 0);
-  const updated = new Date(data.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-  $("stats").innerHTML = `<b>${data.sessions.length}</b> sessions · <b>${projects}</b> projects · <b>${prompts.toLocaleString()}</b> prompts · updated ${esc(updated)}`;
+  const updated = new Date(data.generated).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  $("stats").innerHTML = [`<b>${data.sessions.length}</b> sessions`, `<b>${projects}</b> projects`, `<b>${prompts.toLocaleString()}</b> prompts`, `updated ${esc(updated)}`]
+    .map(t => `<span>${t}</span>`).join(" · ");
   renderAll();
+  showToday();
 }).catch(() => {
   $("stats").textContent = "Couldn't load the session list. Run /history again to republish it.";
 });

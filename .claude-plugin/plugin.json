@@ -1,6 +1,6 @@
 {
   "name": "history",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "/history publishes a private, searchable page of your Claude Code sessions with short summaries and copyable resume commands.",
   "author": {
     "name": "Jeremy"
