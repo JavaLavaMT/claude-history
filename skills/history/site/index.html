@@ -3,16 +3,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one narrow reading column; a sticky search bar, then sessions grouped under day headers. */
+/* Layout: one reading column. Header with an 8-week activity strip, a sticky search/filter bar,
+   then sessions hung on a vertical timeline rail, grouped by day, one colored dot per project. */
 :root {
   --bg: #f3f5f7;
   --surface: #ffffff;
   --ink: #17202b;
   --muted: #5d6b7a;
   --line: #d9e0e7;
+  --rail: #c9d3dc;
   --accent: #0e7c74;
+  --accent-ink: #ffffff;
   --accent-soft: #dcefed;
+  --bar: #a9c7c3;
+  --mark: #fde68a;
+  --mark-ink: #17202b;
   --code-bg: #eef2f5;
+  --dot-l: 0.58;
+  --dot-c: 0.13;
   --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
   --body: "Atkinson Hyperlegible", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -20,105 +28,216 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11161c; --surface: #19212a; --ink: #e6ebf0; --muted: #93a1b0;
-    --line: #2a3541; --accent: #4fc1b6; --accent-soft: #173a38; --code-bg: #0d1217;
+    --line: #2a3541; --rail: #33404d; --accent: #4fc1b6; --accent-ink: #0b1a19; --accent-soft: #173a38;
+    --bar: #2f5f5a; --mark: #6b5a1c; --mark-ink: #fff6d6; --code-bg: #0d1217;
+    --dot-l: 0.74; --dot-c: 0.12;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11161c; --surface: #19212a; --ink: #e6ebf0; --muted: #93a1b0;
-  --line: #2a3541; --accent: #4fc1b6; --accent-soft: #173a38; --code-bg: #0d1217;
+  --line: #2a3541; --rail: #33404d; --accent: #4fc1b6; --accent-ink: #0b1a19; --accent-soft: #173a38;
+  --bar: #2f5f5a; --mark: #6b5a1c; --mark-ink: #fff6d6; --code-bg: #0d1217;
+  --dot-l: 0.74; --dot-c: 0.12;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body {
-  background: var(--bg); color: var(--ink);
-  font: 15px/1.55 var(--body);
-}
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
 body::before {
   content: ""; position: fixed; inset: 0 0 auto;
   height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg);
 }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .wrap {
-  max-width: 760px; margin: 0 auto;
+  max-width: 780px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 32px 64px;
+  padding-block: 32px 72px;
 }
-header h1 {
-  font: 700 clamp(28px, 6vw, 40px)/1.1 var(--display);
-  letter-spacing: -0.02em; margin: 0; text-wrap: balance;
+
+/* Header */
+header { display: flex; flex-direction: column; gap: 18px; }
+h1 { font: 700 clamp(30px, 6vw, 42px)/1.05 var(--display); letter-spacing: -0.02em; margin: 0; }
+.stats { margin: 6px 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); }
+.activity { display: flex; flex-direction: column; gap: 6px; }
+.activity-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; color: var(--muted); }
+.activity-head strong { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: 0.08em; }
+.strip-scroll { overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.strip, .months { display: grid; grid-template-columns: repeat(56, minmax(7px, 1fr)); gap: 3px; min-width: 470px; }
+.strip { height: 64px; align-items: end; border-bottom: 1px solid var(--line); }
+.day-bar {
+  height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer;
+  display: flex; align-items: flex-end; border-radius: 3px 3px 0 0;
 }
-header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.day-bar span { display: block; width: 100%; border-radius: 3px 3px 0 0; background: var(--bar); min-height: 2px; }
+.day-bar.zero span { background: var(--line); }
+.day-bar.today span { background: var(--accent); }
+.day-bar:hover span { background: var(--accent); opacity: .8; }
+.day-bar[aria-pressed="true"] span { background: var(--ink); }
+.months { height: 16px; }
+.months span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: visible; }
+
+/* Sticky bar */
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: var(--bg); padding-block: 16px 12px;
+  background: var(--bg); padding-block: 18px 12px; margin-top: 8px;
   display: flex; flex-direction: column; gap: 10px;
+  border-bottom: 1px solid var(--line);
 }
+.row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+.search { position: relative; flex: 1 1 260px; min-width: 0; }
 #q {
   width: 100%; font: 16px var(--body); color: var(--ink);
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-  padding: 11px 14px;
+  padding: 10px 44px 10px 14px;
 }
-#q:focus-visible, .chip:focus-visible, .copy:focus-visible, summary:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px;
+#q::-webkit-search-cancel-button { display: none; }
+.kbd {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font: 12px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 5px;
+  padding: 1px 7px; pointer-events: none; background: var(--bg);
 }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); flex: none; }
+.seg button { border: 0; background: transparent; padding: 0 12px; font-size: 13px; color: var(--muted); cursor: pointer; min-height: 40px; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
 .chip {
-  flex: none; font: 13px var(--body); color: var(--muted); cursor: pointer;
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--muted); cursor: pointer;
   background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;
 }
-.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-.count { color: var(--muted); font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .75; }
+.status { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); padding: 2px 4px 2px 10px; font-weight: 700;
+}
+.pill button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0 6px; font-weight: 700; }
+
+/* Project dot color: one hue per project, lightness and chroma per theme */
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: oklch(var(--dot-l) var(--dot-c) var(--h)); }
+.proj { color: oklch(var(--dot-l) var(--dot-c) var(--h)); font-weight: 700; }
+
+/* Timeline */
+.timeline { position: relative; padding-left: 26px; margin-top: 8px; }
+.timeline::before { content: ""; position: absolute; left: 8px; top: 18px; bottom: 0; width: 2px; background: var(--rail); border-radius: 2px; }
 .day {
-  font: 600 12px var(--display); text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--muted); margin: 28px 0 10px;
+  position: relative; font: 600 12px var(--display); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 26px 0 6px;
 }
-.list { display: flex; flex-direction: column; gap: 10px; }
+.day::before {
+  content: ""; position: absolute; left: -23px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
+  border-radius: 2px; background: var(--bg); border: 2px solid var(--rail);
+}
 .session {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  padding: 12px 14px; margin-left: -14px; border-radius: 12px; border: 1px solid transparent;
 }
-.session h2 { font: 600 18px/1.3 var(--display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
-.meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
-.meta .proj { color: var(--accent); font-weight: 700; }
+.session:hover, .session:focus-within { background: var(--surface); border-color: var(--line); }
+.session > .dot {
+  position: absolute; left: -9px; top: 19px; width: 12px; height: 12px;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.session:hover > .dot, .session:focus-within > .dot { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line); }
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 0; }
+.session h2 { font: 600 18px/1.3 var(--display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; min-width: 0; }
+.ago { flex: none; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--muted); }
+.meta .branch { font: 12px var(--mono); }
 .summary { margin: 0; max-width: 65ch; overflow-wrap: anywhere; }
 .summary.none { color: var(--muted); font-style: italic; }
-details { font-size: 14px; color: var(--muted); }
-summary { cursor: pointer; width: fit-content; }
-details p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 65ch; }
-.resume { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
-.resume code {
-  flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
-  font: 12.5px/1 var(--mono); background: var(--code-bg); color: var(--ink);
-  border-radius: 8px; padding: 10px 12px;
-}
+mark { background: var(--mark); color: var(--mark-ink); border-radius: 3px; padding: 0 1px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 2px; }
 .copy {
-  flex: none; font: 700 13px var(--body); cursor: pointer;
-  background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 8px; padding: 0 14px;
+  font-size: 13px; font-weight: 700; cursor: pointer; border: 0; border-radius: 8px; padding: 6px 12px;
+  background: var(--accent-soft); color: var(--accent); display: inline-flex; align-items: center; gap: 6px;
 }
-.empty { color: var(--muted); padding: 40px 0; text-align: center; }
-@media (prefers-reduced-motion: no-preference) { .copy { transition: background .15s; } }
+.copy:hover { background: var(--accent); color: var(--accent-ink); }
+.copy svg { width: 12px; height: 12px; }
+details { font-size: 14px; color: var(--muted); flex-basis: auto; min-width: 0; }
+summary { cursor: pointer; width: fit-content; font-size: 13px; }
+details[open] { flex-basis: 100%; }
+.detail { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.detail p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 65ch; }
+.detail code {
+  display: block; overflow-x: auto; white-space: nowrap; font: 12.5px/1.4 var(--mono);
+  background: var(--code-bg); color: var(--ink); border-radius: 8px; padding: 9px 12px;
+}
+.empty { color: var(--muted); padding: 40px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.empty button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) {
+  .copy, .chip, .seg button, .session, .day-bar span { transition: background-color .15s, border-color .15s, opacity .15s; }
+}
+@media (max-width: 480px) {
+  .timeline { padding-left: 22px; }
+  .timeline::before { left: 6px; }
+  .day::before { left: -21px; }
+  .session > .dot { left: -7px; }
+}
 </style>
 
 <div class="wrap">
   <header>
-    <h1>Session Log</h1>
-    <p id="stamp">Loading your Claude Code sessions…</p>
+    <div>
+      <h1>Session Log</h1>
+      <p class="stats" id="stats">Loading your Claude Code sessions…</p>
+    </div>
+    <section class="activity" aria-label="Sessions per day, last 8 weeks">
+      <div class="activity-head"><strong>Last 8 weeks</strong><span>Tap a day to see its sessions</span></div>
+      <div class="strip-scroll">
+        <div class="strip" id="strip"></div>
+        <div class="months" id="months" aria-hidden="true"></div>
+      </div>
+    </section>
   </header>
+
   <div class="bar">
-    <input id="q" type="search" placeholder="Search titles, summaries, first prompts…" aria-label="Search sessions">
+    <div class="row">
+      <div class="search">
+        <input id="q" type="search" placeholder="Search titles, summaries, first messages…" aria-label="Search sessions" autocomplete="off">
+        <span class="kbd" aria-hidden="true">/</span>
+      </div>
+      <div class="seg" role="group" aria-label="Sort sessions">
+        <button type="button" id="sort-recent" data-sort="recent" aria-pressed="true">Recent</button>
+        <button type="button" id="sort-prompts" data-sort="prompts" aria-pressed="false">Most prompts</button>
+      </div>
+    </div>
     <div class="chips" id="chips" role="group" aria-label="Filter by project"></div>
-    <div class="count" id="count"></div>
+    <div class="status" id="status"></div>
   </div>
-  <main id="out"></main>
+
+  <main class="timeline" id="out"></main>
 </div>
 
 <script>
-const state = { sessions: [], project: "All", q: "" };
+const state = { sessions: [], project: "All", q: "", day: null, sort: "recent" };
 const $ = id => document.getElementById(id);
+const COPY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="2"/><path d="M11 2H4a2 2 0 0 0-2 2v7"/></svg>';
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+// Escape text and wrap case-insensitive matches of q in <mark>, without touching entities.
+function hl(text, q) {
+  text = String(text ?? "");
+  if (!q) return esc(text);
+  const lower = text.toLowerCase(), needle = q.toLowerCase();
+  let out = "", i = 0, j;
+  while ((j = lower.indexOf(needle, i)) !== -1) {
+    out += esc(text.slice(i, j)) + "<mark>" + esc(text.slice(j, j + needle.length)) + "</mark>";
+    i = j + needle.length;
+  }
+  return out + esc(text.slice(i));
+}
+const pad = n => String(n).padStart(2, "0");
+const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+function hue(name) {
+  let h = 0;
+  for (const c of String(name)) h = (h * 31 + c.codePointAt(0)) >>> 0;
+  return h % 360;
 }
 function dayLabel(iso) {
   const d = new Date(iso), today = new Date();
@@ -127,71 +246,153 @@ function dayLabel(iso) {
   if (days === 1) return "Yesterday";
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
-function time(iso) {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
-    hour: "numeric", minute: "2-digit",
-  });
+function shortDay(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function ago(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function fullTime(iso) {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 function resumeCmd(s) {
   return `cd ${s.cwd.includes(" ") ? `"${s.cwd}"` : s.cwd} && claude --resume ${s.id}`;
 }
 
-function renderChips() {
+// Sessions in the chosen project, before the search and day filters.
+const inProject = () => state.sessions.filter(s => state.project === "All" || s.project === state.project);
+
+function renderStrip() {
   const counts = {};
-  state.sessions.forEach(s => counts[s.project] = (counts[s.project] || 0) + 1);
-  const names = ["All", ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
-  $("chips").innerHTML = names.map(n =>
-    `<button class="chip" type="button" data-p="${esc(n)}" aria-pressed="${n === state.project}">${esc(n)}${n === "All" ? "" : ` · ${counts[n]}`}</button>`
+  inProject().forEach(s => { const k = dayKey(new Date(s.last)); counts[k] = (counts[k] || 0) + 1; });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = [];
+  for (let i = 55; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(d); }
+  const max = Math.max(1, ...days.map(d => counts[dayKey(d)] || 0));
+  const todayKey = dayKey(today);
+  $("strip").innerHTML = days.map(d => {
+    const k = dayKey(d), n = counts[k] || 0;
+    const label = `${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}: ${n} session${n === 1 ? "" : "s"}`;
+    return `<button type="button" class="day-bar${n ? "" : " zero"}${k === todayKey ? " today" : ""}" data-day="${k}" aria-pressed="${state.day === k}" aria-label="${esc(label)}" title="${esc(label)}"><span style="height:${n ? Math.max(8, (n / max) * 100) : 3}%"></span></button>`;
+  }).join("");
+  $("months").innerHTML = days.map((d, i) =>
+    `<span>${d.getDate() === 1 || i === 0 ? d.toLocaleDateString(undefined, { month: "short" }) : ""}</span>`
   ).join("");
 }
 
-function render() {
-  const q = state.q.toLowerCase();
-  const rows = state.sessions.filter(s =>
-    (state.project === "All" || s.project === state.project) &&
-    (!q || [s.title, s.summary, s.first, s.project, s.branch, s.id].join(" ").toLowerCase().includes(q))
-  );
-  $("count").textContent = `${rows.length} of ${state.sessions.length} sessions`;
-  if (!rows.length) { $("out").innerHTML = `<p class="empty">No sessions match “${esc(state.q)}”. Try a project name or a word from your first message.</p>`; return; }
-  let html = "", day = null;
-  rows.forEach(s => {
-    const d = dayLabel(s.last);
-    if (d !== day) { html += `${day ? "</div>" : ""}<h3 class="day">${d}</h3><div class="list">`; day = d; }
-    html += `<article class="session">
-      <h2>${esc(s.title)}</h2>
-      <div class="meta"><span class="proj">${esc(s.project)}</span>${s.branch ? `<span>${esc(s.branch)}</span>` : ""}<span>${s.prompts} prompt${s.prompts === 1 ? "" : "s"}</span><span>last active ${time(s.last)}</span></div>
-      <p class="summary${s.summary ? "" : " none"}">${s.summary ? esc(s.summary) : "No summary yet. Run /history again to add one."}</p>
-      <details><summary>Your first message</summary><p>${esc(s.first)}</p></details>
-      <div class="resume"><code>${esc(resumeCmd(s))}</code><button class="copy" type="button" data-cmd="${esc(resumeCmd(s))}">Copy</button></div>
-    </article>`;
-  });
-  $("out").innerHTML = html + "</div>";
+function renderChips() {
+  const counts = {};
+  state.sessions.forEach(s => counts[s.project] = (counts[s.project] || 0) + 1);
+  const names = ["All", ...Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b))];
+  $("chips").innerHTML = names.map(n =>
+    `<button class="chip" type="button" data-p="${esc(n)}" aria-pressed="${n === state.project}">${n === "All" ? "" : `<span class="dot" style="--h:${hue(n)}"></span>`}${esc(n)}${n === "All" ? "" : ` <span class="n">${counts[n]}</span>`}</button>`
+  ).join("");
 }
 
-$("q").addEventListener("input", e => { state.q = e.target.value.trim(); render(); });
+function renderSessions() {
+  const q = state.q.toLowerCase();
+  let rows = inProject().filter(s =>
+    (!state.day || dayKey(new Date(s.last)) === state.day) &&
+    (!q || [s.title, s.summary, s.first, s.project, s.branch, s.id].join(" ").toLowerCase().includes(q))
+  );
+  if (state.sort === "prompts") rows = [...rows].sort((a, b) => b.prompts - a.prompts);
+
+  const total = inProject().length;
+  $("status").innerHTML = `<span>${rows.length} of ${total} session${total === 1 ? "" : "s"}</span>` +
+    (state.day ? `<span class="pill">Showing ${esc(shortDay(state.day))}<button type="button" data-clear="day" aria-label="Clear day filter">✕</button></span>` : "");
+
+  if (!rows.length) {
+    const why = state.q ? `No sessions match “${esc(state.q)}”${state.day ? " on that day" : ""}.` : "No sessions on that day.";
+    $("out").innerHTML = `<div class="empty"><span>${why} Try a project name or a word from your first message.</span><button type="button" data-clear="all">Clear filters</button></div>`;
+    return;
+  }
+  let html = "", group = null;
+  rows.forEach(s => {
+    const g = state.sort === "prompts" ? "Most prompts first" : dayLabel(s.last);
+    if (g !== group) { html += `<h3 class="day">${esc(g)}</h3>`; group = g; }
+    const h = hue(s.project), cmd = resumeCmd(s);
+    html += `<article class="session" style="--h:${h}">
+      <span class="dot" aria-hidden="true"></span>
+      <div class="top"><h2>${hl(s.title, state.q)}</h2><time class="ago" datetime="${esc(s.last)}" title="${esc(fullTime(s.last))}">${ago(s.last)}</time></div>
+      <div class="meta"><span class="proj">${hl(s.project, state.q)}</span>${s.branch ? `<span class="branch">${hl(s.branch, state.q)}</span>` : ""}<span>${s.prompts} prompt${s.prompts === 1 ? "" : "s"}</span></div>
+      <p class="summary${s.summary ? "" : " none"}">${s.summary ? hl(s.summary, state.q) : "No summary yet. Run /history again to add one."}</p>
+      <div class="actions">
+        <button class="copy" type="button" data-cmd="${esc(cmd)}">${COPY_ICON}<span>Copy resume</span></button>
+        <details><summary>First message and command</summary>
+          <div class="detail"><p>${hl(s.first, state.q)}</p><code>${esc(cmd)}</code></div>
+        </details>
+      </div>
+    </article>`;
+  });
+  $("out").innerHTML = html;
+}
+
+function renderAll() { renderStrip(); renderChips(); renderSessions(); }
+
+$("q").addEventListener("input", e => { state.q = e.target.value.trim(); renderSessions(); });
+$("q").addEventListener("keydown", e => { if (e.key === "Escape") { e.target.value = ""; state.q = ""; renderSessions(); } });
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) {
+    e.preventDefault(); $("q").focus();
+  }
+});
 $("chips").addEventListener("click", e => {
   const b = e.target.closest(".chip"); if (!b) return;
   state.project = b.dataset.p;
   try { localStorage.setItem("project", state.project); } catch {}
-  renderChips(); render();
+  renderAll();
+});
+$("strip").addEventListener("click", e => {
+  const b = e.target.closest(".day-bar"); if (!b) return;
+  state.day = state.day === b.dataset.day ? null : b.dataset.day;
+  renderStrip(); renderSessions();
+});
+document.querySelector(".seg").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  state.sort = b.dataset.sort;
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  try { localStorage.setItem("sort", state.sort); } catch {}
+  renderSessions();
+});
+document.addEventListener("click", e => {
+  const c = e.target.closest("[data-clear]"); if (!c) return;
+  state.day = null;
+  if (c.dataset.clear === "all") { state.q = ""; $("q").value = ""; }
+  renderStrip(); renderSessions();
 });
 $("out").addEventListener("click", e => {
   const b = e.target.closest(".copy"); if (!b) return;
-  const done = () => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1500); };
-  navigator.clipboard?.writeText(b.dataset.cmd).then(done, () => {
-    const r = document.createRange(); r.selectNodeContents(b.previousElementSibling);
-    getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Press ⌘C";
-  }) ?? done();
+  const label = b.querySelector("span");
+  const say = (t, ms) => { label.textContent = t; setTimeout(() => label.textContent = "Copy resume", ms); };
+  const fallback = () => {
+    const details = b.parentElement.querySelector("details"); details.open = true;
+    const r = document.createRange(); r.selectNodeContents(details.querySelector("code"));
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+    say("Press ⌘C", 2500);
+  };
+  if (!navigator.clipboard?.writeText) return fallback();
+  navigator.clipboard.writeText(b.dataset.cmd).then(() => say("Copied", 1500), fallback);
 });
 
 fetch("sessions.json").then(r => r.json()).then(data => {
   state.sessions = data.sessions;
-  try { const p = localStorage.getItem("project"); if (p && data.sessions.some(s => s.project === p)) state.project = p; } catch {}
-  $("stamp").textContent = `${data.sessions.length} sessions on this computer · updated ${new Date(data.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
-  renderChips(); render();
+  try {
+    const p = localStorage.getItem("project"); if (p && data.sessions.some(s => s.project === p)) state.project = p;
+    const s = localStorage.getItem("sort"); if (s === "prompts" || s === "recent") state.sort = s;
+  } catch {}
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.sort === state.sort));
+  const projects = new Set(data.sessions.map(s => s.project)).size;
+  const prompts = data.sessions.reduce((n, s) => n + s.prompts, 0);
+  const updated = new Date(data.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  $("stats").innerHTML = `<b>${data.sessions.length}</b> sessions · <b>${projects}</b> projects · <b>${prompts.toLocaleString()}</b> prompts · updated ${esc(updated)}`;
+  renderAll();
 }).catch(() => {
-  $("stamp").textContent = "Couldn't load the session list. Run /history again to republish it.";
+  $("stats").textContent = "Couldn't load the session list. Run /history again to republish it.";
 });
 </script>
