@@ -81,6 +81,29 @@ class HistoryTest(unittest.TestCase):
         # once summarized, it is no longer pending
         self.assertIn("0 session(s)", self.run_script("scan"))
 
+    def write_tool_session(self, session_id, cwd, prompt, tool_paths):
+        with open(os.path.join(self.projects, session_id + ".jsonl"), "w") as f:
+            f.write(json.dumps({"type": "user", "cwd": cwd, "timestamp": "2026-01-01T10:00:00Z",
+                                "message": {"content": prompt}}) + "\n")
+            f.write(json.dumps({"type": "assistant", "timestamp": "2026-01-01T10:01:00Z", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": p}} for p in tool_paths
+            ]}}) + "\n")
+
+    def test_project_inferred_from_files_touched(self):
+        code = os.path.join(self.home, "code")
+        os.makedirs(os.path.join(code, "shop-app", ".git"))
+        os.makedirs(os.path.join(code, "real"))
+        self.write_tool_session("t1", code, "fix checkout", [
+            os.path.join(code, "shop-app", "src", "a.js"), os.path.join(code, "shop-app", "b.js")])
+        # plain-English folder names in a prompt don't count as a project mention
+        self.write_tool_session("t2", code, "make it look real, really real", [])
+        out_dir = os.path.join(self.home, "site")
+        self.run_script("render", out_dir)
+        rows = {r["id"]: r for r in self.load(out_dir, "sessions.json")["sessions"]}
+        self.assertEqual(rows["t1"]["project"], "shop-app")
+        self.assertEqual(rows["t1"]["cwd"], "~/code")  # resume still runs from where the session started
+        self.assertEqual(rows["t2"]["project"], "code")
+
     def test_url_roundtrip(self):
         self.assertEqual(self.run_script("url"), "none")
         self.run_script("url", "https://claude.ai/artifact/example")

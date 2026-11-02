@@ -9,6 +9,7 @@
 Your data (summaries, page URL) lives in ~/.claude/history-data, or $CLAUDE_HISTORY_DATA if set,
 so it is never inside the plugin folder and survives plugin updates.
 """
+import collections
 import datetime
 import glob
 import json
@@ -84,6 +85,7 @@ def read_session(path):
         "last": None,
         "prompts": [],
         "recap": "",
+        "paths": [],
     }
     with open(path, errors="ignore") as f:
         for line in f:
@@ -101,6 +103,9 @@ def read_session(path):
                 session["cwd"] = record["cwd"]
             if record.get("gitBranch") and record["gitBranch"] != "HEAD":
                 session["branch"] = record["gitBranch"]
+            if record.get("type") == "assistant":
+                session["paths"].extend(tool_paths(record))
+                continue
             if record.get("type") != "user" or record.get("isMeta") or record.get("isSidechain"):
                 continue
             text = prompt_text(record)
@@ -111,6 +116,81 @@ def read_session(path):
                 continue
             session["prompts"].append(text)
     return session
+
+
+PATH_IN_TEXT = re.compile(r"(?:~|/)[\w.\-/]+")
+CD_RELATIVE = re.compile(r"\bcd\s+([\w][\w.\-]*)")
+PROJECT_MARKERS = (".git", "package.json", "pyproject.toml", "Package.swift", "Cargo.toml", "go.mod",
+                   "pubspec.yaml", "Gemfile", "composer.json", "requirements.txt", "setup.py", "pom.xml",
+                   "build.gradle", "wrangler.toml", "config.xml")
+
+
+def tool_paths(record):
+    """File paths an assistant message's tool calls touched (absolute, or relative for `cd x`)."""
+    found = []
+    for part in record.get("message", {}).get("content") or []:
+        if not isinstance(part, dict) or part.get("type") != "tool_use":
+            continue
+        tool_input = part.get("input") or {}
+        for key in ("file_path", "path", "notebook_path"):
+            if isinstance(tool_input.get(key), str):
+                found.append(tool_input[key])
+        command = tool_input.get("command")
+        if isinstance(command, str):
+            found += PATH_IN_TEXT.findall(command)
+            found += ["./" + name for name in CD_RELATIVE.findall(command)]
+    return found
+
+
+def is_project_root(path):
+    try:
+        names = os.listdir(path)
+    except OSError:
+        return False
+    return any(m in names for m in PROJECT_MARKERS) or any(n.endswith((".xcodeproj", ".xcworkspace")) for n in names)
+
+
+def infer_project(cwd, paths, prompts):
+    """When Claude ran in a folder that holds many projects (e.g. ~/code), find the one the session was about.
+
+    Walks down from cwd while one subfolder holds at least half of the touched paths, and stops at the
+    first folder that looks like a project (.git, package.json, ...). Distinctive folder names mentioned
+    in the user's prompts count too. Returns None when there's no clear answer.
+    """
+    if not cwd or is_project_root(cwd):
+        return None
+    rels = []
+    for raw in paths:
+        path = os.path.expanduser(raw)
+        path = os.path.normpath(os.path.join(cwd, path) if path.startswith("./") else path)
+        if path.startswith(cwd + os.sep):
+            parts = [p for p in os.path.relpath(path, cwd).split(os.sep) if p]
+            if parts and not parts[0].startswith("."):
+                rels.append(parts)
+    try:
+        subdirs = {n for n in os.listdir(cwd) if not n.startswith(".") and os.path.isdir(os.path.join(cwd, n))}
+    except OSError:
+        subdirs = set()
+    text = " ".join(prompts)
+    for name in subdirs:
+        # Only distinctive names count, so a folder called "real" or "app" doesn't match plain English.
+        if re.search(r"[-_\d]|[a-z][A-Z]", name) or len(name) >= 7:
+            mentions = len(re.findall(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", text, re.I))
+            rels += [[name]] * (2 * min(mentions, 5))
+    if len(rels) < 2:
+        return None
+    prefix = []
+    for _ in range(5):
+        nexts = collections.Counter(r[len(prefix)] for r in rels if len(r) > len(prefix) and r[:len(prefix)] == prefix)
+        if not nexts:
+            break
+        name, count = nexts.most_common(1)[0]
+        if count * 2 < len(rels) or not os.path.isdir(os.path.join(cwd, *prefix, name)):
+            break
+        prefix.append(name)
+        if is_project_root(os.path.join(cwd, *prefix)):
+            return name
+    return prefix[0] if prefix else None
 
 
 def project_label(cwd):
@@ -125,6 +205,7 @@ def all_sessions():
     for path in glob.glob(os.path.join(PROJECTS, "*", "*.jsonl")):
         session = read_session(path)
         if session["prompts"]:
+            session["project"] = infer_project(session["cwd"], session["paths"], session["prompts"]) or project_label(session["cwd"])
             yield session
 
 
@@ -144,7 +225,7 @@ def digest(session):
     return {
         "id": session["id"],
         "title": session["title"],
-        "project": project_label(session["cwd"]),
+        "project": session["project"],
         "prompt_count": len(prompts),
         "recap": redact(session["recap"][:1500]),
         "prompts": sample,
@@ -186,7 +267,7 @@ def render(out_dir):
             "id": session["id"],
             "title": session["title"] or redact(first[:60]),
             "summary": summaries.get(session["id"], {}).get("summary", ""),
-            "project": project_label(session["cwd"]),
+            "project": session["project"],
             "cwd": session["cwd"].replace(HOME, "~", 1),
             "branch": session["branch"],
             "started": session["started"],
