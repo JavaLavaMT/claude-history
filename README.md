@@ -1,5 +1,7 @@
 # /history for Claude Code
 
+[![Tests](https://github.com/JavaLavaMT/claude-history/actions/workflows/test.yml/badge.svg)](https://github.com/JavaLavaMT/claude-history/actions/workflows/test.yml)
+
 Type `/history` in Claude Code and you get a private web page listing every Claude Code session on your computer. Each one shows its title, a one-line summary of what you did, the project, when you last used it, and a **Copy** button for the command that reopens it.
 
 Run it again any time. The link stays the same, and only new sessions get summarized.
@@ -50,7 +52,7 @@ Paste into **Claude Code**:
 /history
 ```
 
-Claude reads your past sessions, writes a short summary for each, and gives you a link to your page. The first run takes a few minutes if you have lots of sessions. After that it's quick.
+Claude reads your past sessions, writes a short summary for each, and gives you a link to your page. If you have lots of sessions, the first run summarizes your 40 most recent. Run `/history` again to fill in the rest.
 
 ---
 
@@ -84,3 +86,12 @@ When Jeremy updates the plugin, paste into **Claude Code**:
 - **Only you can see your page.** It's private to your claude.ai account. Jeremy can't see it, and nobody else can either unless you share it from the page's Share menu.
 - **Your data stays on your computer.** Summaries and your page link are saved in `~/.claude/history-data`. Delete that folder to start over.
 - **Secrets are removed.** API keys, tokens and passwords are stripped out before Claude reads anything. The page does show the start of your first message in each session, though, so look it over before you share the link with anyone.
+
+---
+
+## For Jeremy: shipping an update
+
+1. Make the change and run the tests: `python3 -m unittest discover tests -v`
+2. Bump `version` in `.claude-plugin/plugin.json` (for example `1.1.0` to `1.2.0`). Friends only get the update when this number changes.
+3. Commit and push to `main`.
+4. Tell friends to run `/plugin marketplace update jeremy-tools`.

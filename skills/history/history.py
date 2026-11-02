@@ -28,6 +28,8 @@ PAGE = os.path.join(HERE, "site", "index.html")
 
 # A session is summarized again once it has this many new prompts since its last summary.
 RESUMMARIZE_AFTER = 5
+# At most this many sessions are summarized per run, newest first; the rest wait for the next run.
+SCAN_LIMIT = 40
 
 SECRET_PATTERNS = [
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{10,}"),
@@ -157,9 +159,13 @@ def save_json(path, data, **kwargs):
 
 def scan():
     summaries = load_json(SUMMARIES, {})
-    pending = [digest(s) for s in all_sessions() if needs_summary(s, summaries)]
+    waiting = [s for s in all_sessions() if needs_summary(s, summaries)]
+    waiting.sort(key=lambda s: s["last"] or "", reverse=True)
+    pending = [digest(s) for s in waiting[:SCAN_LIMIT]]
     save_json(PENDING, pending, indent=1)
-    print(f"{len(pending)} session(s) need a summary -> {PENDING}")
+    later = len(waiting) - len(pending)
+    more = f" ({later} more next run)" if later else ""
+    print(f"{len(pending)} session(s) need a summary{more} -> {PENDING}")
 
 
 def add(path):

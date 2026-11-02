@@ -15,7 +15,7 @@ Builds one private artifact page listing every Claude Code session in `~/.claude
 python3 <skill>/history.py scan
 ```
 
-This writes `~/.claude/history-data/pending.json`: one digest per session that is new or has grown by 5+ prompts since it was last summarized. Secrets are already redacted from it.
+This writes `~/.claude/history-data/pending.json`: one digest per session that is new or has grown by 5+ prompts since it was last summarized, at most 40 per run (newest first). If it says more are waiting, they get summarized on the next run. Secrets are already redacted from it.
 
 ## 2. Write the summaries
 
@@ -27,7 +27,7 @@ Write them as `{"<id>": "<summary>", ...}` to a file in your scratchpad, then me
 python3 <skill>/history.py add <that file>
 ```
 
-With many pending sessions, do it in batches of about 25 so nothing gets dropped. On a first run with hundreds of sessions, tell the user it will take a while.
+With many pending sessions, do it in batches of about 25 so nothing gets dropped.
 
 ## 3. Build the page and publish
 
@@ -45,4 +45,4 @@ Publish `<scratchpad>/history/index.html` with `root: "<scratchpad>/history"` an
 
 ## 4. Reply
 
-Give the link and one line: how many sessions are listed and how many summaries were added this run. If the user also asked about a specific session, answer that too with its resume command.
+Give the link and one line: how many sessions are listed and how many summaries were added this run. If the scan said more are waiting, add that running `/history` again summarizes the next batch. If the user also asked about a specific session, answer that too with its resume command.
