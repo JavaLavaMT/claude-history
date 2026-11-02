@@ -7,9 +7,11 @@ Type `/history` and Claude builds a private web page listing every Claude Code s
 In Claude Code:
 
 ```
-/plugin marketplace add OWNER/claude-history
+/plugin marketplace add JavaLavaMT/claude-history
 /plugin install history@jeremy-tools
 ```
+
+This repo is private: you need to be added as a collaborator, and git on your computer needs to be signed in to GitHub (`gh auth login` is the easiest way).
 
 Restart Claude Code, then run `/history` (it may show as `/history:history`).
 
